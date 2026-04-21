@@ -890,25 +890,42 @@ async function loadAll() {
   await Promise.all([loadGames(), loadMyPredictions()]);
 }
 
-async function loadGames() {
+async function loadGames() {async function loadGames() {
+  const PLAYOFFS = [
+    // PLAY-IN (21-24 Nisan)
+    { event_id:'el_pi1', home_team:'Panathinaikos', away_team:'Monaco',        event_date:'2026-04-21', event_time:'19:00:00', round:'Play-In' },
+    { event_id:'el_pi2', home_team:'Barcelona',     away_team:'Crvena Zvezda', event_date:'2026-04-21', event_time:'19:45:00', round:'Play-In' },
+    { event_id:'el_pi3', home_team:'TBD',           away_team:'TBD',           event_date:'2026-04-24', event_time:'19:00:00', round:'Play-In' },
+    // ÇEYREK FİNAL (28 Nisan'dan itibaren, best of 5)
+    { event_id:'el_qf1g1', home_team:'Olympiacos',     away_team:'TBD',     event_date:'2026-04-28', event_time:'20:00:00', round:'Çeyrek Final G1' },
+    { event_id:'el_qf2g1', home_team:'Valencia',       away_team:'TBD',     event_date:'2026-04-29', event_time:'20:00:00', round:'Çeyrek Final G1' },
+    { event_id:'el_qf3g1', home_team:'Real Madrid',    away_team:'TBD',     event_date:'2026-04-28', event_time:'20:00:00', round:'Çeyrek Final G1' },
+    { event_id:'el_qf4g1', home_team:'Fenerbahce',     away_team:'TBD',     event_date:'2026-04-29', event_time:'20:00:00', round:'Çeyrek Final G1' },
+  ];
+
   try {
-    const [nextR, pastR] = await Promise.allSettled([
-      fetch(`${SPORTSDB}/eventsnextleague.php?id=${LEAGUE_ID}`).then(r => r.json()),
-      fetch(`${SPORTSDB}/eventspastleague.php?id=${LEAGUE_ID}`).then(r => r.json()),
-    ]);
+    const { data: sbGames } = await sb.from('games').select('*');
+    const sbMap = {};
+    if (sbGames) sbGames.forEach(g => sbMap[g.event_id] = g);
 
-    let events = [];
-    if (nextR.status === 'fulfilled' && nextR.value?.events)
-      events.push(...nextR.value.events);
-    if (pastR.status === 'fulfilled' && pastR.value?.events)
-      events.push(...pastR.value.events.slice(-20));
-
-    // Deduplicate
-    const seen = new Set();
-    events = events.filter(e => {
-      if (seen.has(e.idEvent)) return false;
-      seen.add(e.idEvent); return true;
+    allGames = PLAYOFFS.map(e => {
+      const sg = sbMap[e.event_id];
+      return {
+        ...e,
+        id:         sg?.id || null,
+        settled:    sg?.settled || false,
+        home_score: sg?.home_score ?? null,
+        away_score: sg?.away_score ?? null,
+      };
     });
+
+    renderGames();
+  } catch (err) {
+    console.error('loadGames:', err);
+    document.getElementById('gamesBox').innerHTML =
+      `<div class="empty-st"><div class="empty-ico">⚠️</div><p>${t('errLoad')}</p></div>`;
+  }
+});
 
     // Sort by date asc
     events.sort((a, b) => new Date(a.dateEvent) - new Date(b.dateEvent));
